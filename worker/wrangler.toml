@@ -1,0 +1,8 @@
+name = "trueloto-api"
+main = "src/index.js"
+compatibility_date = "2026-10-18"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "trueloto-db"
+database_id = "951f8be7-22b8-44dc-9727-073dc4e725f4"
