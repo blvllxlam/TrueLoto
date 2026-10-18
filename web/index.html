@@ -27,8 +27,10 @@ button{width:100%;border:0;border-radius:14px;padding:15px 16px;font:700 15px sy
 <script>
 const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand()}
 const initData=tg?.initData||"";
+// После публикации Worker замени URL ниже на адрес вида https://trueloto-api.<subdomain>.workers.dev
+const API_BASE="https://YOUR-WORKER-SUBDOMAIN.workers.dev";
 const setText=(id,value)=>document.getElementById(id).textContent=value??"—";
-async function api(path){const r=await fetch(path,{headers:{"X-Telegram-Init-Data":initData}});const d=await r.json();if(!r.ok)throw new Error(d.error||"Ошибка API");return d}
+async function api(path){const r=await fetch(API_BASE+path,{headers:{"X-Telegram-Init-Data":initData}});const d=await r.json();if(!r.ok)throw new Error(d.error||"Ошибка API");return d}
 function formatDate(v){if(!v)return"Не назначена";const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleString("ru-RU")}
 async function load(){setText("message","Загружаю данные…");try{if(!initData)throw new Error("Открой Mini App внутри Telegram, чтобы подтвердить аккаунт.");const [m,d,r]=await Promise.all([api("/api/me"),api("/api/draw"),api("/api/rules")]);const u=m.user;setText("greeting","Добро пожаловать, "+u.first_name);setText("name",u.first_name);setText("status",({not_participating:"Не участвуете",waiting_draw:"Ожидаете розыгрыш",declined_for_karma:"Отказались от выигрыша"})[u.participation_status]||u.participation_status);setText("chance",u.winning_chance_percent);setText("wins",u.wins_count);setText("losses",u.losses_count);setText("draw-status",d.draw.status);setText("participants",d.participant_count);setText("draw-date",formatDate(d.draw.draw_datetime));setText("rules",r.rules);setText("message","Данные обновлены")}catch(e){setText("message",e.message)}}
 document.getElementById("refresh").addEventListener("click",load);
