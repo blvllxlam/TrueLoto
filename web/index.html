@@ -28,7 +28,7 @@ button{width:100%;border:0;border-radius:14px;padding:15px 16px;font:700 15px sy
 const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand()}
 const initData=tg?.initData||"";
 // После публикации Worker замени URL ниже на адрес вида https://trueloto-api.<subdomain>.workers.dev
-const API_BASE="https://YOUR-WORKER-SUBDOMAIN.workers.dev";
+const API_BASE="https://trueloto-api.b-lvl-lxl-am-a7b.workers.dev";
 const setText=(id,value)=>document.getElementById(id).textContent=value??"—";
 async function api(path){const r=await fetch(API_BASE+path,{headers:{"X-Telegram-Init-Data":initData}});const d=await r.json();if(!r.ok)throw new Error(d.error||"Ошибка API");return d}
 function formatDate(v){if(!v)return"Не назначена";const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleString("ru-RU")}
