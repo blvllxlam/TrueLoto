@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101116"><title>TrueLoto</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{color-scheme:dark;--bg:#101116;--panel:#1b1d25;--muted:#a4a8b7;--accent:#b6f36b;--text:#f6f7fb}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,sans-serif}
+main{max-width:520px;margin:auto;padding:calc(22px + env(safe-area-inset-top)) 18px calc(28px + env(safe-area-inset-bottom))}
+.brand{color:var(--accent);font-size:13px;font-weight:800;letter-spacing:.18em}h1{margin:8px 0 4px;font-size:30px;letter-spacing:-.04em}.muted{color:var(--muted)}
+.notice{margin:20px 0;padding:13px 14px;border:1px solid #41452f;border-radius:14px;color:#dce9c7;background:#20251a;font-size:13px}
+.card{background:var(--panel);border:1px solid #2b2e39;border-radius:18px;padding:17px;margin:12px 0}.card h2{margin:0 0 12px;font-size:17px}
+.row{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid #30323c}.row:last-child{border:0}.row span:first-child{color:var(--muted)}.row span:last-child{text-align:right;overflow-wrap:anywhere}
+button{width:100%;border:0;border-radius:14px;padding:15px 16px;font:700 15px system-ui,sans-serif;cursor:pointer}.primary{color:#171b10;background:var(--accent);margin-top:8px}.secondary{color:var(--text);background:#2a2d37;margin-top:10px}
+#message{min-height:24px;margin-top:14px;font-size:13px;color:var(--muted);text-align:center}
+</style></head>
+<body><main>
+<div class="brand">TRULOTO</div><h1>Твой шанс.</h1><div class="muted" id="greeting">Мини-приложение розыгрышей</div>
+<div class="notice">⚠️ ТЕСТОВАЯ ВЕРСИЯ — реальные платежи не принимаются. Участие пока отключено.</div>
+<section class="card"><h2>Мой профиль</h2>
+<div class="row"><span>Имя</span><span id="name">Загрузка…</span></div><div class="row"><span>Статус</span><span id="status">—</span></div><div class="row"><span>Шанс на победу</span><span id="chance">—</span></div><div class="row"><span>Победы</span><span id="wins">—</span></div><div class="row"><span>Поражения</span><span id="losses">—</span></div></section>
+<section class="card"><h2>Текущий розыгрыш</h2><div class="row"><span>Статус</span><span id="draw-status">—</span></div><div class="row"><span>Участники</span><span id="participants">—</span></div><div class="row"><span>Дата</span><span id="draw-date">Не назначена</span></div><button class="primary" id="participate">Участвовать — скоро</button></section>
+<section class="card"><h2>Правила</h2><p class="muted" id="rules">Загрузка правил…</p><button class="secondary" id="refresh">Обновить данные</button></section>
+<div id="message">Открой приложение через кнопку в Telegram-боте.</div>
+</main>
+<script>
+const tg=window.Telegram?.WebApp;if(tg){tg.ready();tg.expand()}
+const initData=tg?.initData||"";
+const setText=(id,value)=>document.getElementById(id).textContent=value??"—";
+async function api(path){const r=await fetch(path,{headers:{"X-Telegram-Init-Data":initData}});const d=await r.json();if(!r.ok)throw new Error(d.error||"Ошибка API");return d}
+function formatDate(v){if(!v)return"Не назначена";const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleString("ru-RU")}
+async function load(){setText("message","Загружаю данные…");try{if(!initData)throw new Error("Открой Mini App внутри Telegram, чтобы подтвердить аккаунт.");const [m,d,r]=await Promise.all([api("/api/me"),api("/api/draw"),api("/api/rules")]);const u=m.user;setText("greeting","Добро пожаловать, "+u.first_name);setText("name",u.first_name);setText("status",({not_participating:"Не участвуете",waiting_draw:"Ожидаете розыгрыш",declined_for_karma:"Отказались от выигрыша"})[u.participation_status]||u.participation_status);setText("chance",u.winning_chance_percent);setText("wins",u.wins_count);setText("losses",u.losses_count);setText("draw-status",d.draw.status);setText("participants",d.participant_count);setText("draw-date",formatDate(d.draw.draw_datetime));setText("rules",r.rules);setText("message","Данные обновлены")}catch(e){setText("message",e.message)}}
+document.getElementById("refresh").addEventListener("click",load);
+document.getElementById("participate").addEventListener("click",async()=>{try{await api("/api/participation")}catch(e){setText("message",e.message)}});
+load();
+</script></body></html>
