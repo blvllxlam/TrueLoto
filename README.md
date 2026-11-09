@@ -25,7 +25,7 @@ When prompted, enter the same Telegram bot token used by the bot and a long rand
 Apply the D1 migration only after checking the target database and taking a backup:
 
 ```powershell
-npx wrangler d1 backup create trueloto-db
+npx wrangler d1 export trueloto-db --remote --output=./trueloto-before-migration.sql
 npx wrangler d1 migrations apply trueloto-db --remote
 ```
 
