@@ -1,48 +1,43 @@
-# TrueLoto Mini App — initial scaffold
+# TrueLoto Worker
 
-Ветка: `mini-app`. Python-бот и Mini App используют общий Worker API и одну базу D1.
+Cloudflare Worker для Telegram-бота и Mini App. Оба клиента используют одну Cloudflare D1 через этот API.
 
-## Что добавлено
-- `web/index.html` — первый экран Telegram Mini App.
-- `worker/src/index.js` — API с проверкой Telegram `initData`.
-- `worker/schema.sql` — схема Cloudflare D1.
-- `worker/wrangler.toml` — конфигурация Worker и привязка к созданной D1.
+## Текущий тестовый режим
 
-## Важно
-D1 — отдельная облачная база. Она пока не синхронизирована с локальной SQLite бота. Реальные платежи и участие отключены.
+- Участие в розыгрыше бесплатное.
+- Реальные платежи, депозиты и переводы отключены.
+- Mini App авторизуется по Telegram Web App `initData`.
+- Python-бот вызывает приватные маршруты с заголовком `X-Bot-Api-Key`.
+- Секреты `BOT_TOKEN` и `BOT_API_SECRET` хранятся только в Cloudflare Worker secrets.
 
-## Дальнейшее развёртывание (PowerShell, из корня репозитория)
+## Развёртывание
 
-1. Установить секрет токена бота в Worker:
-   `npx.cmd wrangler@latest secret put BOT_TOKEN --config worker/wrangler.toml`
-   Вставь токен в интерактивный запрос Wrangler. Не сохраняй токен в Git.
+Из корня репозитория в PowerShell:
 
-2. Создать таблицы в удалённой D1:
-   `npx.cmd wrangler@latest d1 execute trueloto-db --remote --file=worker/schema.sql --config worker/wrangler.toml`
+```powershell
+npx.cmd wrangler@latest deploy --config worker/wrangler.toml
+```
 
-3. Опубликовать API:
-   `npx.cmd wrangler@latest deploy --config worker/wrangler.toml`
-   Сохрани выданный URL Worker вида `https://trueloto-api.<subdomain>.workers.dev`.
-
-4. В `web/index.html` замени `https://YOUR-WORKER-SUBDOMAIN.workers.dev` в `API_BASE` на фактический URL Worker и сохрани файл.
-
-5. Создай Pages project и опубликуй frontend:
-   `npx.cmd wrangler@latest pages project create trueloto-mini-app`
-   `npx.cmd wrangler@latest pages deploy web --project-name trueloto-mini-app`
-
-6. Открой выданный Pages URL внутри Telegram Web App. Для реального теста нужен настроенный URL кнопки Mini App в BotFather или в клавиатуре бота.
+Не запускай `schema.sql` поверх существующей базы и не выполняй миграции, пока отдельно не проверены состояние D1 и наличие файлов миграций. Ветка `mini-app` использует уже созданную базу `trueloto-db`; обычное обновление кода Worker не требует пересоздания таблиц.
 
 ## API
-- `GET /api/health` — проверка доступности Worker, без Telegram-авторизации.
-- `GET /api/me` — создать/прочитать профиль пользователя из D1.
-- `GET /api/draw` — настройки текущего розыгрыша и число участников.
+
+Публичные маршруты (требуют валидный Telegram `initData`):
+- `GET /api/me` — профиль и виртуальный кошелёк.
+- `GET /api/draw` — состояние розыгрыша и число участников.
 - `GET /api/rules` — правила тестового режима.
-- `POST /api/participation` — бесплатная запись пользователя в текущий розыгрыш; принимает `{ "action": "join" }`.
-- `POST /internal/participation` — приватный эквивалент для Telegram-бота через `X-Bot-Api-Key`.
+- `POST /api/participation` — бесплатное участие или отказ от участия.
 
-Участие доступно только после настройки администратором даты и лимита, пока розыгрыш находится в статусе `not_started` и есть свободные места. Запись выполняется одним условным SQL UPDATE, поэтому превышение лимита при одновременных запросах блокируется базой. Депозиты, подтверждения оплаты и реальные платежи не используются.
+Публичная проверка:
+- `GET /api/health` — доступность Worker без авторизации.
 
-## Безопасность
-- API проверяет подпись Telegram `initData` и ограничивает её возраст 24 часами.
-- `BOT_TOKEN` должен храниться только как Worker secret.
-- Не подключай реальный сбор платежей до отдельного проектирования и проверки требований.
+Приватные маршруты для бота требуют `X-Bot-Api-Key`:
+- `/internal/users/*` — профиль пользователя.
+- `/internal/draw/*` — настройки и проведение розыгрыша.
+- `POST /internal/participation` — запись пользователя в розыгрыш.
+
+Участие возможно только после установки администратором даты и лимита, пока статус розыгрыша `not_started` и остаются места. Условный SQL UPDATE не позволяет записать больше участников, чем заданный лимит. Финализация розыгрыша сначала атомарно захватывает статус `started`, чтобы два параллельных запроса не провели два розыгрыша одновременно.
+
+## Локальные переменные
+
+Не добавляй `.env`, `BOT_TOKEN` или `BOT_API_SECRET` в Git. Не вставляй секреты в Mini App или публичные файлы.
