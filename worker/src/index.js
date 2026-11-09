@@ -270,6 +270,11 @@ export default {
                AND EXISTS (SELECT 1 FROM draw_rounds WHERE id = ?)`
           ).bind(Math.round(weights[i] / totalWeight * 10000), winner.id, winner.id, u.id, roundId));
         }
+        // A declined prize applies only to the current round. Re-enable those
+        // users after this draw so they can choose again in the next round.
+        statements.push(env.DB.prepare(
+          "UPDATE users SET participation_status = 'not_participating', updated_at = CURRENT_TIMESTAMP WHERE participation_status = 'declined_for_karma'"
+        ));
         statements.push(env.DB.prepare(
           "UPDATE draw_settings SET status = 'completed' WHERE id = 1 AND status = 'finalizing'"
         ));
