@@ -51,4 +51,4 @@ py -m pip install -r requirements.txt
 py main.py
 ```
 
-The bot's user, language, participation, settings and draw operations are now routed through the Worker API. Keep the old local `trueloto.db` as a backup until the end-to-end test is complete.
+The bot's user, language, participation, settings and draw operations are now routed through the Worker API. The old tracked local SQLite database and its SQLAlchemy models have been removed; the bot no longer creates or uses a local application database.
