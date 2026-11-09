@@ -329,7 +329,7 @@ export default {
           }
         } else {
           const result = await env.DB.prepare(
-            "UPDATE users SET participation_status = 'declined_for_karma', payment_status = 'not_paid', participation_amount_minor = 0, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ? AND participation_status = 'not_participating'"
+            "UPDATE users SET participation_status = 'declined_for_karma', payment_status = 'not_paid', participation_amount_minor = 0, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ? AND participation_status = 'not_participating' AND EXISTS (SELECT 1 FROM draw_settings WHERE id = 1 AND status = 'not_started' AND participant_limit IS NOT NULL)"
           ).bind(id).run();
           if (result.meta.changes === 1) return json({ ok: true, action, status: "declined_for_karma" });
         }
@@ -473,7 +473,7 @@ export default {
         }
       } else {
         const result = await env.DB.prepare(
-          "UPDATE users SET participation_status = 'declined_for_karma', payment_status = 'not_paid', participation_amount_minor = 0, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ? AND participation_status = 'not_participating'"
+          "UPDATE users SET participation_status = 'declined_for_karma', payment_status = 'not_paid', participation_amount_minor = 0, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ? AND participation_status = 'not_participating' AND EXISTS (SELECT 1 FROM draw_settings WHERE id = 1 AND status = 'not_started' AND participant_limit IS NOT NULL)"
         ).bind(telegramId).run();
         if (result.meta.changes === 1) return json({ ok: true, status: "declined_for_karma", test_mode: true });
       }
