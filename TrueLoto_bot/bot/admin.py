@@ -159,6 +159,15 @@ async def admin_actions(message: Message, state: FSMContext) -> None:
                     )
                 except TelegramForbiddenError:
                     continue
+            for declined_user in result.declined_users:
+                try:
+                    await message.bot.send_message(
+                        declined_user.telegram_id,
+                        text_for(declined_user.language_code)["draw_finished"],
+                        reply_markup=main_keyboard(declined_user.language_code, True),
+                    )
+                except TelegramForbiddenError:
+                    continue
             await message.answer(
                 f"Тестовый розыгрыш завершён. Победитель: {result.winner_telegram_id}. "
                 f"Суммарный вес: {result.total_weight}."
