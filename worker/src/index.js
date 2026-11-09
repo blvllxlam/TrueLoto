@@ -221,21 +221,28 @@ export default {
         }
         const winner = participants[winnerIndex];
         const now = new Date().toISOString();
+        const roundId = Date.now() * 1000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 1000);
         const statements = [
           env.DB.prepare(
+            "UPDATE draw_settings SET status = 'finalizing' WHERE id = 1 AND status = 'started'"
+          ),
+          env.DB.prepare(
             `INSERT INTO draw_rounds
-             (status, draw_datetime, participant_limit, participant_count, total_weight,
+             (id, status, draw_datetime, participant_limit, participant_count, total_weight,
               winner_user_id, winner_telegram_id, created_at, started_at, completed_at, finalized_at)
-             VALUES ('completed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-          ).bind(settings.draw_datetime, settings.participant_limit, participants.length,
+             SELECT ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+             WHERE EXISTS (SELECT 1 FROM draw_settings WHERE id = 1 AND status = 'finalizing')`
+          ).bind(roundId, settings.draw_datetime, settings.participant_limit, participants.length,
             totalWeight, winner.id, String(winner.telegram_id), now, now, now, now),
         ];
+
         for (let i = 0; i < participants.length; i++) {
           const u = participants[i];
           statements.push(env.DB.prepare(
             `INSERT INTO draw_participants (draw_round_id, user_id, weight, status, joined_at)
-             SELECT last_insert_rowid(), ?, ?, 'completed', ?`
-          ).bind(u.id, weights[i], now));
+             SELECT ?, ?, ?, 'completed', ?
+             WHERE EXISTS (SELECT 1 FROM draw_rounds WHERE id = ?)`
+          ).bind(roundId, u.id, weights[i], now, roundId));
           statements.push(env.DB.prepare(
             `UPDATE users SET
               winning_chance_basis_points = ?, participation_status = 'not_participating',
@@ -243,15 +250,24 @@ export default {
               wins_count = CASE WHEN id = ? THEN wins_count + 1 ELSE wins_count END,
               losses_count = CASE WHEN id = ? THEN 0 ELSE losses_count + 1 END,
               updated_at = CURRENT_TIMESTAMP
-             WHERE id = ? AND participation_status = 'waiting_draw'`
-          ).bind(Math.round(weights[i] / totalWeight * 10000), winner.id, winner.id, u.id));
+             WHERE id = ? AND participation_status = 'waiting_draw'
+               AND EXISTS (SELECT 1 FROM draw_rounds WHERE id = ?)`
+          ).bind(Math.round(weights[i] / totalWeight * 10000), winner.id, winner.id, u.id, roundId));
         }
-        statements.push(env.DB.prepare("UPDATE draw_settings SET status = 'completed' WHERE id = 1 AND status = 'started'"));
+        statements.push(env.DB.prepare(
+          "UPDATE draw_settings SET status = 'completed' WHERE id = 1 AND status = 'finalizing'"
+        ));
+
         try {
           await env.DB.batch(statements);
         } catch (error) {
           return json({ error: "Draw finalization failed", detail: String(error) }, 409);
         }
+        const finalized = await env.DB.prepare(
+          "SELECT id FROM draw_rounds WHERE id = ?"
+        ).bind(roundId).first();
+        if (!finalized) return json({ error: "Draw was already finalized by another request" }, 409);
+
         return json({
           winner_telegram_id: String(winner.telegram_id),
           participants: participants.map((u, i) => ({
