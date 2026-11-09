@@ -17,7 +17,6 @@ From the `worker` directory:
 npm install
 npx wrangler secret put BOT_TOKEN
 npx wrangler secret put BOT_API_SECRET
-npx wrangler deploy
 ```
 
 When prompted, enter the same Telegram bot token used by the bot and a long random value for `BOT_API_SECRET`. Keep the API secret private. Never put it in frontend code or commit it.
@@ -25,8 +24,10 @@ When prompted, enter the same Telegram bot token used by the bot and a long rand
 Apply the D1 migration only after checking the target database and taking a backup:
 
 ```powershell
-npx wrangler d1 export trueloto-db --remote --output=./trueloto-before-migration.sql
+New-Item -ItemType Directory -Force .wrangler | Out-Null
+npx wrangler d1 export trueloto-db --remote --output=./.wrangler/trueloto-before-migration.sql
 npx wrangler d1 migrations apply trueloto-db --remote
+npx wrangler deploy
 ```
 
 The migration is intended to preserve existing D1 user and draw-history rows. It does not import the local SQLite test database.
