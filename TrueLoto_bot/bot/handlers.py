@@ -5,15 +5,13 @@ from aiogram.types import Message
 from bot.keyboards import (
     main_keyboard,
     participation_keyboard,
-    test_deposit_keyboard,
-    test_payment_keyboard,
 )
 from bot.services.draws import get_draw_settings
 from bot.services.users import (
     get_or_create_user,
     get_user,
-    set_participation_status,
-    set_payment_status,
+    join_draw,
+    decline_for_karma,
     set_user_language,
 )
 from bot.settings import get_draw_datetime
@@ -100,7 +98,7 @@ async def participate(message: Message) -> None:
     or message.text in {value["decline_prize"] for value in TEXTS.values()}
 )
 async def choose_participation(message: Message) -> None:
-    """Обрабатывает шаги тестового участия без реальных платежей."""
+    """Записывает бесплатное участие без депозитов и имитации оплаты."""
     if message.from_user is None:
         return
 
@@ -109,17 +107,27 @@ async def choose_participation(message: Message) -> None:
         await message.answer("Сначала отправьте /start.")
         return
 
-    action = (
-        "draw"
-        if message.text in {value["join_draw"] for value in TEXTS.values()}
-        else "decline"
-    )
     texts = text_for(user.language_code)
-    set_participation_status(user.telegram_id, f"pending_deposit_{action}")
-    set_payment_status(user.telegram_id, "not_paid")
-    await message.answer(
-        texts["deposit_step"], reply_markup=test_deposit_keyboard(user.language_code)
-    )
+    try:
+        if message.text in {value["join_draw"] for value in TEXTS.values()}:
+            join_draw(user.telegram_id)
+            settings = get_draw_settings()
+            draw_datetime = (
+                settings.draw_datetime.strftime("%d.%m.%Y %H:%M")
+                if settings.draw_datetime else "дата пока не назначена"
+            )
+            await message.answer(
+                texts["waiting_draw"].format(draw_datetime=draw_datetime),
+                reply_markup=main_keyboard(user.language_code, can_participate=False),
+            )
+        else:
+            decline_for_karma(user.telegram_id)
+            await message.answer(
+                texts["decline_complete"],
+                reply_markup=main_keyboard(user.language_code, can_participate=False),
+            )
+    except Exception as exc:
+        await message.answer(str(exc))
 
 
 @router.message(lambda message: message.text in {value["test_deposit"] for value in TEXTS.values()})
