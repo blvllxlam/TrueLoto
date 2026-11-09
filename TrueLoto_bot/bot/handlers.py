@@ -130,60 +130,6 @@ async def choose_participation(message: Message) -> None:
         await message.answer(str(exc))
 
 
-@router.message(lambda message: message.text in {value["test_deposit"] for value in TEXTS.values()})
-async def make_test_deposit(message: Message) -> None:
-    if message.from_user is None:
-        return
-    user = get_user(message.from_user.id)
-    if user is None or user.participation_status not in {
-        "pending_deposit_draw", "pending_deposit_decline"
-    }:
-        await message.answer("Начните сценарий через кнопку участия.")
-        return
-
-    choice = user.participation_status.removeprefix("pending_deposit_")
-    set_participation_status(user.telegram_id, f"pending_confirmation_{choice}")
-    set_payment_status(user.telegram_id, "test_deposit")
-    texts = text_for(user.language_code)
-    await message.answer(
-        texts["payment_step"], reply_markup=test_payment_keyboard(user.language_code)
-    )
-
-
-@router.message(
-    lambda message: message.text in {value["confirm_test_payment"] for value in TEXTS.values()}
-)
-async def confirm_test_payment(message: Message) -> None:
-    if message.from_user is None:
-        return
-    user = get_user(message.from_user.id)
-    if user is None:
-        return
-
-    texts = text_for(user.language_code)
-    if user.participation_status == "pending_confirmation_draw":
-        set_participation_status(user.telegram_id, "waiting_draw")
-        set_payment_status(user.telegram_id, "test_paid")
-        settings = get_draw_settings()
-        draw_datetime = (
-            settings.draw_datetime.strftime("%d.%m.%Y %H:%M")
-            if settings.draw_datetime
-            else get_draw_datetime()
-        )
-        await message.answer(
-            texts["waiting_draw"].format(draw_datetime=draw_datetime),
-            reply_markup=main_keyboard(user.language_code, can_participate=False),
-        )
-    elif user.participation_status == "pending_confirmation_decline":
-        set_participation_status(user.telegram_id, "declined_for_karma")
-        set_payment_status(user.telegram_id, "test_paid")
-        await message.answer(
-            texts["decline_complete"], reply_markup=main_keyboard(user.language_code, can_participate=False)
-        )
-    else:
-        await message.answer("Начните сценарий через кнопку участия.")
-
-
 @router.message(lambda message: message.text in {value["status"] for value in TEXTS.values()})
 async def user_status(message: Message) -> None:
     """Показывает данные зарегистрированного пользователя."""
