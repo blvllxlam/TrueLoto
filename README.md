@@ -31,13 +31,7 @@ npx wrangler d1 migrations apply trueloto-db --remote
 
 The migration is intended to preserve existing D1 user and draw-history rows. It does not import the local SQLite test database.
 
-For a brand-new D1 database, initialize it with `schema.sql` instead of applying migration 0002 to an empty database:
-
-```powershell
-npx wrangler d1 execute trueloto-db --remote --file=./schema.sql
-```
-
-Do not run both initialization paths against the same database.
+The migration sequence includes an idempotent baseline (0001) and the D1 upgrade (0002). It can initialize a new database or upgrade the original schema. Keep `schema.sql` as the reference for the resulting current schema; do not execute it separately before applying migrations.
 
 ## Configure the Python bot
 
