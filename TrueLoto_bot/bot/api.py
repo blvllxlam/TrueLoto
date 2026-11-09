@@ -16,8 +16,12 @@ def _request(path: str, method: str = "GET", payload: dict | None = None) -> dic
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     request = Request(
         f"{base_url}{path}", data=body, method=method,
-        headers={"Accept": "application/json", "Content-Type": "application/json",
-                 "X-Bot-Api-Key": secret},
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "TrueLotoBot/1.0",
+            "X-Bot-Api-Key": secret,
+        },
     )
     try:
         with urlopen(request, timeout=15) as response:
