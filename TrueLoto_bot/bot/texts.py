@@ -11,6 +11,7 @@ LANGUAGE_NAMES = {
 TEXTS = {
     "ru": {
         "menu": "Главное меню TrueLoto",
+        "open_app": "🎲 Открыть TrueLoto",
         "participate": "Участвовать",
         "status": "Мой статус",
         "rules": "Правила",
@@ -38,6 +39,7 @@ TEXTS = {
     },
     "en": {
         "menu": "TrueLoto main menu",
+        "open_app": "🎲 Open TrueLoto",
         "participate": "Participate",
         "status": "My status",
         "rules": "Rules",
@@ -65,6 +67,7 @@ TEXTS = {
     },
     "es": {
         "menu": "Menú principal de TrueLoto",
+        "open_app": "🎲 Abrir TrueLoto",
         "participate": "Participar",
         "status": "Mi estado",
         "rules": "Reglas",
@@ -92,6 +95,7 @@ TEXTS = {
     },
     "hy": {
         "menu": "TrueLoto-ի գլխավոր մենյու",
+        "open_app": "🎲 Բացել TrueLoto-ը",
         "participate": "Մասնակցել",
         "status": "Իմ կարգավիճակը",
         "rules": "Կանոններ",
