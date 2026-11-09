@@ -135,10 +135,10 @@ async def admin_actions(message: Message, state: FSMContext) -> None:
     elif action == "start":
         settings = get_draw_settings()
         waiting_count = get_waiting_draw_count()
-        if settings.status != "not_started":
+        if settings.status not in {"not_started", "started"}:
             await message.answer(
-                "Этот раунд уже запущен или завершён. Чтобы подготовить следующий раунд, "
-                "установите новую дату или лимит участников."
+                "Этот раунд уже завершён или подводятся итоги. Чтобы подготовить следующий "
+                "раунд, установите новую дату или лимит участников."
             )
         elif settings.draw_datetime is None or settings.participant_limit is None:
             await message.answer("Сначала установите дату и лимит участников.")
@@ -148,10 +148,13 @@ async def admin_actions(message: Message, state: FSMContext) -> None:
             )
         else:
             try:
-                start_test_draw()
+                # If the start request succeeded but the result request timed out,
+                # retry finalization without trying to start the same round again.
+                if settings.status == "not_started":
+                    start_test_draw()
                 result = run_test_draw()
             except Exception as exc:
-                await message.answer(f"Не удалось запустить розыгрыш: {exc}")
+                await message.answer(f"Не удалось завершить розыгрыш. Можно повторить попытку: {exc}")
                 return
             for participant in result.participants:
                 texts = text_for(participant.language_code)
