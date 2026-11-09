@@ -41,7 +41,6 @@ async function validateTelegramInitData(initData, botToken) {
   if (authDate > now + 60 || now - authDate > 86400) return null;
 
   params.delete("hash");
-  params.delete("signature");
   const dataCheckString = [...params.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => `${key}=${value}`)
