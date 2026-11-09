@@ -407,6 +407,37 @@ export default {
       });
     }
 
+    if (url.pathname === "/api/history" && request.method === "GET") {
+      const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit")) || 20));
+      const rows = await env.DB.prepare(
+        `SELECT r.id, r.status, r.draw_datetime, r.participant_count,
+                r.total_weight, r.created_at, r.completed_at,
+                CASE WHEN r.winner_telegram_id = ? THEN 1 ELSE 0 END AS is_winner,
+                p.weight AS my_weight, p.status AS my_status
+         FROM draw_rounds r
+         INNER JOIN draw_participants p ON p.draw_round_id = r.id
+         INNER JOIN users u ON u.id = p.user_id
+         WHERE u.telegram_id = ?
+         ORDER BY r.created_at DESC
+         LIMIT ?`
+      ).bind(telegramId, telegramId, limit).all();
+      return json({
+        rounds: (rows.results || []).map((row) => ({
+          id: row.id,
+          status: row.status,
+          draw_datetime: row.draw_datetime,
+          participant_count: row.participant_count,
+          total_weight: row.total_weight,
+          created_at: row.created_at,
+          completed_at: row.completed_at,
+          is_winner: Boolean(row.is_winner),
+          weight: row.my_weight,
+          participant_status: row.my_status,
+        })),
+        test_mode: true,
+      });
+    }
+
     if (url.pathname === "/api/rules" && request.method === "GET") {
       return json({ rules: TEST_RULES, test_mode: true });
     }
