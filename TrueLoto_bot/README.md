@@ -1,92 +1,33 @@
-# TrueLoto
+# TrueLoto Telegram bot
 
-Минимальный Telegram-бот для MVP проекта TrueLoto.
+Python Telegram bot for the TrueLoto test environment. The bot and Telegram Mini App use the same Cloudflare D1 database through the Worker API. The bot does not use a local SQLite database.
 
-## Структура
+## Configuration
 
-```text
-TrueLoto/
-├── bot/
-│   ├── database.py     # Подключение SQLite и создание таблиц
-│   ├── handlers.py     # Обработчики команд и кнопок
-│   └── keyboards.py    # Клавиатуры бота
-│   ├── models.py       # Модели SQLAlchemy
-│   └── services/       # Работа с пользователями
-├── .env                # Локальный токен (не добавляется в Git)
-├── .gitignore
-├── main.py             # Точка входа
-└── requirements.txt
+Create `.env` from `.env.example` and set:
+
+- `BOT_TOKEN` — Telegram bot token; must match the Worker secret.
+- `ADMIN_TELEGRAM_ID` — numeric Telegram ID of the administrator.
+- `WORKER_API_URL` — deployed Worker base URL, without a trailing slash.
+- `BOT_API_SECRET` — same private secret configured in the Worker as `BOT_API_SECRET`.
+- `DRAW_DATETIME` — optional fallback display date.
+
+Never commit `.env` or share `BOT_API_SECRET`. The bot sends private requests to the Worker using the `X-Bot-Api-Key` header.
+
+## Install and run
+
+From this directory:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+py -m pip install -r requirements.txt
+py main.py
 ```
 
-При первом запуске рядом с `main.py` будет создан файл базы данных `trueloto.db`.
-Он хранит зарегистрированных пользователей и не добавляется в Git.
+## Test-mode behavior
 
-## Данные пользователя
-
-Таблица `users` хранит Telegram ID, дату регистрации, статус и сумму участия,
-шанс победы, число побед и проигрышей, а также необязательные платёжные реквизиты.
-Платёжные процессы в MVP не реализованы. Не сохраняйте номера карт, CVV, PIN-коды
-или пароли: для платежей позднее потребуется платёжный провайдер.
-
-Для тестового сценария участия можно задать дату розыгрыша в `.env`:
-
-```env
-DRAW_DATETIME=31.12.2026 20:00 (UTC+4)
-```
-
-Без этой настройки будет показана тестовая дата по умолчанию.
-
-## Админ-панель
-
-1. Отправьте боту `/myid`, чтобы узнать свой Telegram ID.
-2. Добавьте его в `.env`:
-
-   ```env
-   ADMIN_TELEGRAM_ID=ваш_telegram_id
-   ```
-
-3. Перезапустите бота и отправьте `/start`, чтобы получить права администратора.
-4. Отправьте `/admin`.
-
-Админ-панель предназначена для тестирования: она не обрабатывает реальные платежи.
-Розыгрыш выбирает одного тестового победителя взвешенным псевдослучайным способом:
-вес участника равен `losses_count + 1`.
-
-После завершения тестового розыгрыша бот возвращает участникам кнопку участия для
-следующего раунда и сохраняет запись о раунде в таблице `draw_rounds`.
-
-## Тестовый режим
-
-В текущей версии нет платёжных систем, реальных оплат, финансовых операций или
-ссылок на оплату. Бот не запрашивает реквизиты, данные карт, документы или пароли.
-Кнопки «Внести оплату» и «Подтвердить оплату» только имитируют шаги сценария.
-
-## Запуск
-
-1. Установите Python 3.10 или новее.
-2. Создайте виртуальное окружение:
-
-   ```powershell
-   py -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   ```
-
-3. Установите зависимости:
-
-   ```powershell
-   pip install -r requirements.txt
-   ```
-
-4. Откройте `.env` и укажите токен, полученный у [@BotFather](https://t.me/BotFather):
-
-   ```env
-   BOT_TOKEN=ваш_токен_здесь
-   ```
-
-5. Запустите бота:
-
-   ```powershell
-   python main.py
-   ```
-
-После этого откройте диалог с ботом в Telegram и отправьте `/start`.
+- User profiles, language, participation status, draw settings and draw history are stored in Cloudflare D1 through the Worker.
+- The admin panel is available with `/admin`; use `/myid` to get the Telegram ID for administrator configuration.
+- The test draw uses participant weight `losses_count + 1`.
+- No real payments or money transfers are supported. Payment-related buttons only simulate the test flow.
