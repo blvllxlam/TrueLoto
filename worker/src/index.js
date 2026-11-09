@@ -93,7 +93,7 @@ export default {
       return json({ ok: true, service: "trueloto-api", test_mode: true });
     }
 
-    if (!url.pathname.startsWith("/api/")) return json({ error: "Not found" }, 404);
+    if (!url.pathname.startsWith("/api/") && !url.pathname.startsWith("/internal/")) return json({ error: "Not found" }, 404);
 
     // Private bot-to-Worker API. Never expose BOT_API_SECRET to Mini App clients.
     if (url.pathname.startsWith("/internal/")) {
