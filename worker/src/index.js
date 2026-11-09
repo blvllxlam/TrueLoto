@@ -178,24 +178,20 @@ export default {
         if (body.field === "participant_limit" && (!Number.isInteger(body.value) || body.value < 1)) {
           return json({ error: "participant_limit must be a positive integer" }, 400);
         }
-        const currentSettings = await env.DB.prepare(
-          "SELECT status FROM draw_settings WHERE id = 1"
-        ).first();
-        if (currentSettings && ["started", "finalizing"].includes(currentSettings.status)) {
-          return json({ error: "Нельзя менять настройки после старта розыгрыша." }, 409);
+        const result = await env.DB.prepare(
+          `UPDATE draw_settings
+           SET ${body.field} = ?, status = 'not_started'
+           WHERE id = 1
+             AND status NOT IN ('started', 'finalizing')
+             AND (? <> 'participant_limit' OR ? >= (
+               SELECT COUNT(*) FROM users WHERE participation_status = 'waiting_draw'
+             ))`
+        ).bind(body.value ?? null, body.field, body.value ?? null).run();
+        if (result.meta.changes !== 1) {
+          return json({
+            error: "Настройки нельзя изменить: розыгрыш уже запущен или лимит меньше числа записанных участников."
+          }, 409);
         }
-        if (body.field === "participant_limit") {
-          const count = await env.DB.prepare(
-            "SELECT COUNT(*) AS count FROM users WHERE participation_status = 'waiting_draw'"
-          ).first();
-          if (body.value < count.count) {
-            return json({ error: "Лимит не может быть меньше числа уже записанных участников." }, 409);
-          }
-        }
-        await env.DB.prepare(
-          `INSERT INTO draw_settings (id, ${body.field}, status) VALUES (1, ?, 'not_started')
-           ON CONFLICT(id) DO UPDATE SET ${body.field} = excluded.${body.field}, status = 'not_started'`
-        ).bind(body.value ?? null).run();
         return json({ ok: true });
       }
 
