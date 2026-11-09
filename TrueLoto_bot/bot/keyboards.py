@@ -33,24 +33,3 @@ def participation_keyboard(language_code: str | None) -> ReplyKeyboardMarkup:
         resize_keyboard=True,
     )
 
-
-def test_deposit_keyboard(language_code: str | None) -> ReplyKeyboardMarkup:
-    texts = text_for(language_code)
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=texts["test_deposit"])],
-            [KeyboardButton(text=texts["back"])],
-        ],
-        resize_keyboard=True,
-    )
-
-
-def test_payment_keyboard(language_code: str | None) -> ReplyKeyboardMarkup:
-    texts = text_for(language_code)
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=texts["confirm_test_payment"])],
-            [KeyboardButton(text=texts["back"])],
-        ],
-        resize_keyboard=True,
-    )
