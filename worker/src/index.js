@@ -179,8 +179,8 @@ export default {
           return json({ error: "participant_limit must be a positive integer" }, 400);
         }
         await env.DB.prepare(
-          `INSERT INTO draw_settings (id, ${body.field}) VALUES (1, ?)
-           ON CONFLICT(id) DO UPDATE SET ${body.field} = excluded.${body.field}`
+          `INSERT INTO draw_settings (id, ${body.field}, status) VALUES (1, ?, 'not_started')
+           ON CONFLICT(id) DO UPDATE SET ${body.field} = excluded.${body.field}, status = 'not_started'`
         ).bind(body.value ?? null).run();
         return json({ ok: true });
       }
@@ -206,7 +206,7 @@ export default {
           "SELECT * FROM users WHERE participation_status = 'waiting_draw' ORDER BY id"
         ).all();
         const participants = rows.results || [];
-        if (!settings || settings.status === "completed") return json({ error: "Draw is already completed" }, 409);
+        if (!settings || settings.status !== "started") return json({ error: "Draw is not started" }, 409);
         if (!settings.participant_limit || participants.length !== settings.participant_limit) {
           return json({ error: "Participant count does not match the configured limit" }, 409);
         }
