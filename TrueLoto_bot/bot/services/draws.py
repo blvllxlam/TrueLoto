@@ -17,6 +17,7 @@ class DrawSettings:
 class DrawResult:
     winner_telegram_id: int
     participants: list[User]
+    declined_users: list[User]
     total_weight: int
 
 
@@ -61,7 +62,20 @@ def run_test_draw() -> DrawResult:
         )
         for item in result.get("participants", [])
     ]
-    return DrawResult(int(result["winner_telegram_id"]), participants, int(result["total_weight"]))
+    declined_users = [
+        User(
+            id=0, telegram_id=int(item["telegram_id"]), username=None,
+            first_name=item.get("first_name") or "Telegram user", created_at=datetime.utcnow(),
+            is_admin=False, language_code=item.get("language_code"),
+            participation_status="not_participating", participation_amount=0,
+            winning_chance=0, wins_count=0, losses_count=0, payment_status="not_paid",
+        )
+        for item in result.get("declined_users", [])
+    ]
+    return DrawResult(
+        int(result["winner_telegram_id"]), participants, declined_users,
+        int(result["total_weight"]),
+    )
 
 
 def get_users() -> list[User]:
