@@ -74,3 +74,19 @@ def set_participation_status(telegram_id: int, status: str) -> None:
 
 def set_payment_status(telegram_id: int, status: str) -> None:
     post("/internal/users/update", {"telegram_id": str(telegram_id), "field": "payment_status", "value": status})
+
+
+def join_draw(telegram_id: int) -> dict:
+    """Атомарно записывает бесплатное участие через Worker API."""
+    return post("/internal/participation", {
+        "telegram_id": str(telegram_id),
+        "action": "join",
+    })
+
+
+def decline_for_karma(telegram_id: int) -> dict:
+    """Фиксирует отказ от участия без платежей и депозитов."""
+    return post("/internal/participation", {
+        "telegram_id": str(telegram_id),
+        "action": "decline",
+    })
