@@ -14,7 +14,6 @@ from bot.services.users import (
     decline_for_karma,
     set_user_language,
 )
-from bot.settings import get_draw_datetime
 from bot.texts import LANGUAGE_NAMES, TEXTS, language_keyboard, text_for
 
 
@@ -180,28 +179,15 @@ async def language_selection(message: Message) -> None:
 
 @router.message(lambda message: message.text in {value["back"] for value in TEXTS.values()})
 async def go_back(message: Message) -> None:
-    """Возвращает пользователя на предыдущий доступный экран."""
+    """Возвращает пользователя в главное меню."""
     if message.from_user is None:
         return
     user = get_user(message.from_user.id)
     if user is None:
         await message.answer("Сначала отправьте /start.")
         return
-
     texts = text_for(user.language_code)
-    if user.participation_status.startswith("pending_confirmation_"):
-        choice = user.participation_status.removeprefix("pending_confirmation_")
-        set_participation_status(user.telegram_id, f"pending_deposit_{choice}")
-        set_payment_status(user.telegram_id, "not_paid")
-        await message.answer(
-            texts["deposit_step"], reply_markup=test_deposit_keyboard(user.language_code)
-        )
-    elif user.participation_status.startswith("pending_deposit_"):
-        await message.answer(
-            texts["choose_participation"], reply_markup=participation_keyboard(user.language_code)
-        )
-    else:
-        await message.answer(
-            texts["menu"],
-            reply_markup=main_keyboard(user.language_code, can_participate(user.participation_status)),
-        )
+    await message.answer(
+        texts["menu"],
+        reply_markup=main_keyboard(user.language_code, can_participate(user.participation_status)),
+    )
