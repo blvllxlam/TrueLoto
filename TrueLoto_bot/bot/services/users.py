@@ -1,66 +1,76 @@
-from aiogram.types import User as TelegramUser
-from sqlalchemy import select
+from dataclasses import dataclass
+from datetime import datetime
 
-from bot.database import SessionLocal
-from bot.models import User
+from aiogram.types import User as TelegramUser
+
+from bot.api import post
 from bot.settings import get_admin_telegram_id
 
 
+@dataclass
+class User:
+    id: int
+    telegram_id: int
+    username: str | None
+    first_name: str
+    created_at: datetime
+    is_admin: bool
+    language_code: str | None
+    participation_status: str
+    participation_amount: float
+    winning_chance: float
+    wins_count: int
+    losses_count: int
+    payment_status: str
+
+
+def _to_user(data: dict | None) -> User | None:
+    if not data:
+        return None
+    created_at = data.get("created_at")
+    try:
+        created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    except (AttributeError, ValueError):
+        created = datetime.utcnow()
+    return User(
+        id=int(data["id"]), telegram_id=int(data["telegram_id"]),
+        username=data.get("username"), first_name=data.get("first_name") or "Telegram user",
+        created_at=created, is_admin=bool(data.get("is_admin")),
+        language_code=data.get("language_code"),
+        participation_status=data.get("participation_status") or "not_participating",
+        participation_amount=float(data.get("participation_amount") or 0),
+        winning_chance=float(data.get("winning_chance") or 0),
+        wins_count=int(data.get("wins_count") or 0), losses_count=int(data.get("losses_count") or 0),
+        payment_status=data.get("payment_status") or "not_paid",
+    )
+
+
 def get_or_create_user(telegram_user: TelegramUser) -> tuple[User, bool]:
-    """Возвращает пользователя и признак его создания."""
-    with SessionLocal() as session:
-        user = session.scalar(
-            select(User).where(User.telegram_id == telegram_user.id)
-        )
-
-        is_admin = telegram_user.id == get_admin_telegram_id()
-
-        if user:
-            if user.is_admin != is_admin:
-                user.is_admin = is_admin
-                session.commit()
-            return user, False
-
-        user = User(
-            telegram_id=telegram_user.id,
-            username=telegram_user.username,
-            first_name=telegram_user.first_name,
-            is_admin=is_admin,
-        )
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-        return user, True
+    previous = get_user(telegram_user.id)
+    result = post("/internal/users/upsert", {
+        "telegram_id": str(telegram_user.id), "username": telegram_user.username,
+        "first_name": telegram_user.first_name or "Telegram user",
+        "language_code": None,
+        "is_admin": telegram_user.id == get_admin_telegram_id(),
+    })
+    user = _to_user(result.get("user"))
+    if user is None:
+        raise RuntimeError("Worker API не вернул профиль пользователя.")
+    return user, previous is None
 
 
 def get_user(telegram_id: int) -> User | None:
-    """Находит пользователя по Telegram ID."""
-    with SessionLocal() as session:
-        return session.scalar(select(User).where(User.telegram_id == telegram_id))
+    result = post("/internal/users/get", {"telegram_id": str(telegram_id)})
+    return _to_user(result.get("user"))
 
 
 def set_user_language(telegram_id: int, language_code: str) -> None:
-    """Сохраняет выбранный пользователем язык."""
-    with SessionLocal() as session:
-        user = session.scalar(select(User).where(User.telegram_id == telegram_id))
-        if user is not None:
-            user.language_code = language_code
-            session.commit()
+    post("/internal/users/update", {"telegram_id": str(telegram_id), "field": "language_code", "value": language_code})
 
 
 def set_participation_status(telegram_id: int, status: str) -> None:
-    """Сохраняет текущий этап тестового сценария участия."""
-    with SessionLocal() as session:
-        user = session.scalar(select(User).where(User.telegram_id == telegram_id))
-        if user is not None:
-            user.participation_status = status
-            session.commit()
+    post("/internal/users/update", {"telegram_id": str(telegram_id), "field": "participation_status", "value": status})
 
 
 def set_payment_status(telegram_id: int, status: str) -> None:
-    """Сохраняет тестовый статус оплаты."""
-    with SessionLocal() as session:
-        user = session.scalar(select(User).where(User.telegram_id == telegram_id))
-        if user is not None:
-            user.payment_status = status
-            session.commit()
+    post("/internal/users/update", {"telegram_id": str(telegram_id), "field": "payment_status", "value": status})
