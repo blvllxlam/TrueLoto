@@ -37,7 +37,6 @@ async function validateTelegramInitData(initData, botToken) {
   const authDate = Number(params.get("auth_date"));
   if (!receivedHash || !Number.isFinite(authDate)) return null;
 
-  // Не принимаем initData старше 24 часов.
   const now = Math.floor(Date.now() / 1000);
   if (authDate > now + 60 || now - authDate > 86400) return null;
 
@@ -68,59 +67,105 @@ async function validateTelegramInitData(initData, botToken) {
 }
 
 async function requireTelegramUser(request, env) {
-  const initData = request.headers.get("X-Telegram-Init-Data");
-  const user = await validateTelegramInitData(initData, env.BOT_TOKEN);
-  return user;
+  return validateTelegramInitData(
+    request.headers.get("X-Telegram-Init-Data"),
+    env.BOT_TOKEN,
+  );
 }
 
 export default {
   async fetch(request, env) {
-    if (request.method === "OPTIONS") return new Response(null, { status: 204 });
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-allow-methods": "GET, POST, OPTIONS",
+          "access-control-allow-headers": "Content-Type, X-Telegram-Init-Data",
+          "access-control-max-age": "86400",
+        },
+      });
+    }
+
     const url = new URL(request.url);
 
     if (url.pathname === "/api/health" && request.method === "GET") {
-      return json({ ok: true, service: "trueloto-api" });
+      return json({ ok: true, service: "trueloto-api", test_mode: true });
     }
 
     if (!url.pathname.startsWith("/api/")) return json({ error: "Not found" }, 404);
 
     const tgUser = await requireTelegramUser(request, env);
-    if (!tgUser) return json({ error: "Telegram authentication failed. Open this app inside Telegram." }, 401);
+    if (!tgUser) {
+      return json({ error: "Telegram authentication failed. Open this app inside Telegram." }, 401);
+    }
+
+    const telegramId = String(tgUser.id);
 
     if (url.pathname === "/api/me" && request.method === "GET") {
-      const telegramId = String(tgUser.id);
-      await env.DB.prepare(
-        `INSERT INTO users (telegram_id, username, first_name, language_code)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(telegram_id) DO UPDATE SET
-           username = excluded.username,
-           first_name = excluded.first_name,
-           language_code = COALESCE(users.language_code, excluded.language_code)`
-      ).bind(telegramId, tgUser.username || null, tgUser.first_name || "Telegram user",
-        (tgUser.language_code || "ru").slice(0, 2)).run();
+      // Register/update the Telegram profile and create its virtual wallet.
+      await env.DB.batch([
+        env.DB.prepare(
+          `INSERT INTO users (telegram_id, username, first_name, language_code)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(telegram_id) DO UPDATE SET
+             username = excluded.username,
+             first_name = excluded.first_name,
+             language_code = excluded.language_code,
+             updated_at = CURRENT_TIMESTAMP`,
+        ).bind(
+          telegramId,
+          tgUser.username || null,
+          tgUser.first_name || "Telegram user",
+          (tgUser.language_code || "ru").slice(0, 2),
+        ),
+        env.DB.prepare(
+          `INSERT OR IGNORE INTO wallets (user_id, balance_minor)
+           SELECT id, 0 FROM users WHERE telegram_id = ?`,
+        ).bind(telegramId),
+      ]);
 
       const user = await env.DB.prepare(
-        `SELECT first_name, created_at, language_code, participation_status,
-                winning_chance, wins_count, losses_count
-         FROM users WHERE telegram_id = ?`
+        `SELECT id, telegram_id, username, first_name, created_at, language_code,
+                participation_status, winning_chance_basis_points,
+                wins_count, losses_count
+         FROM users WHERE telegram_id = ?`,
       ).bind(telegramId).first();
+
+      const wallet = await env.DB.prepare(
+        "SELECT balance_minor, currency_code FROM wallets WHERE user_id = ?",
+      ).bind(user.id).first();
 
       return json({
         user: {
-          ...user,
-          winning_chance_percent: (Number(user.winning_chance || 0) * 100).toFixed(2) + "%",
+          id: user.id,
+          telegram_id: user.telegram_id,
+          username: user.username,
+          first_name: user.first_name,
+          created_at: user.created_at,
+          language_code: user.language_code,
+          participation_status: user.participation_status,
+          winning_chance_percent: (Number(user.winning_chance_basis_points || 0) / 100).toFixed(2) + "%",
+          wins_count: user.wins_count,
+          losses_count: user.losses_count,
         },
+        wallet: wallet || { balance_minor: 0, currency_code: "TST" },
+        test_mode: true,
       });
     }
 
     if (url.pathname === "/api/draw" && request.method === "GET") {
       const draw = await env.DB.prepare(
-        "SELECT draw_datetime, participant_limit, status FROM draw_settings WHERE id = 1"
+        "SELECT draw_datetime, participant_limit, status FROM draw_settings WHERE id = 1",
       ).first();
       const count = await env.DB.prepare(
-        "SELECT COUNT(*) AS count FROM users WHERE participation_status = 'waiting_draw'"
+        "SELECT COUNT(*) AS count FROM users WHERE participation_status = 'waiting_draw'",
       ).first();
-      return json({ draw: draw || { draw_datetime: null, participant_limit: null, status: "not_started" }, participant_count: count.count });
+      return json({
+        draw: draw || { draw_datetime: null, participant_limit: null, status: "not_started" },
+        participant_count: count.count,
+        test_mode: true,
+      });
     }
 
     if (url.pathname === "/api/rules" && request.method === "GET") {
@@ -128,8 +173,10 @@ export default {
     }
 
     if (url.pathname === "/api/participation" && request.method === "POST") {
-      // Участие намеренно выключено: платежей в тестовой версии нет.
-      return json({ error: "Участие пока недоступно. Это тестовая версия без платежей." }, 409);
+      return json(
+        { error: "Участие пока недоступно. Это тестовая версия без платежей.", test_mode: true },
+        409,
+      );
     }
 
     return json({ error: "Not found" }, 404);
