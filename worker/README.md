@@ -1,6 +1,6 @@
 # TrueLoto Mini App — initial scaffold
 
-Ветка: `mini-app`. Существующий Python-бот не менялся.
+Ветка: `mini-app`. Python-бот и Mini App используют общий Worker API и одну базу D1.
 
 ## Что добавлено
 - `web/index.html` — первый экран Telegram Mini App.
