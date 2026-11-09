@@ -216,10 +216,6 @@ export default {
           "SELECT * FROM users WHERE participation_status = 'waiting_draw' ORDER BY id"
         ).all();
         const participants = rows.results || [];
-        const declinedRows = await env.DB.prepare(
-          "SELECT telegram_id, first_name, language_code FROM users WHERE participation_status = 'declined_for_karma' ORDER BY id"
-        ).all();
-        const declinedUsers = declinedRows.results || [];
         if (!settings || settings.status !== "started") return json({ error: "Draw is not started" }, 409);
         if (!settings.participant_limit || participants.length !== settings.participant_limit) {
           return json({ error: "Participant count does not match the configured limit" }, 409);
@@ -244,6 +240,12 @@ export default {
         if (claim.meta.changes !== 1) {
           return json({ error: "Draw is already being finalized or is no longer started" }, 409);
         }
+        // Read decliners only after claiming the round: new declines are now
+        // blocked by the started state, so this list cannot miss a late opt-out.
+        const declinedRows = await env.DB.prepare(
+          "SELECT telegram_id, first_name, language_code FROM users WHERE participation_status = 'declined_for_karma' ORDER BY id"
+        ).all();
+        const declinedUsers = declinedRows.results || [];
 
         const statements = [
           env.DB.prepare(
