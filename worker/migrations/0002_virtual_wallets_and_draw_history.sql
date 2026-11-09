@@ -3,6 +3,7 @@
 -- Existing user and draw rows are retained. No real-money/payment data is used.
 
 ALTER TABLE users ADD COLUMN updated_at TEXT;
+ALTER TABLE users ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'not_paid';
 ALTER TABLE users ADD COLUMN participation_amount_minor INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN winning_chance_basis_points INTEGER NOT NULL DEFAULT 0;
 
