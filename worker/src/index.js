@@ -222,10 +222,16 @@ export default {
         const winner = participants[winnerIndex];
         const now = new Date().toISOString();
         const roundId = Date.now() * 1000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 1000);
+        // Claim the draw in a standalone conditional update. Only one concurrent
+        // request can move the state from started to finalizing.
+        const claim = await env.DB.prepare(
+          "UPDATE draw_settings SET status = 'finalizing' WHERE id = 1 AND status = 'started'"
+        ).run();
+        if (claim.meta.changes !== 1) {
+          return json({ error: "Draw is already being finalized or is no longer started" }, 409);
+        }
+
         const statements = [
-          env.DB.prepare(
-            "UPDATE draw_settings SET status = 'finalizing' WHERE id = 1 AND status = 'started'"
-          ),
           env.DB.prepare(
             `INSERT INTO draw_rounds
              (id, status, draw_datetime, participant_limit, participant_count, total_weight,
