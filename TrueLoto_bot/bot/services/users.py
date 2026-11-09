@@ -50,7 +50,7 @@ def get_or_create_user(telegram_user: TelegramUser) -> tuple[User, bool]:
     result = post("/internal/users/upsert", {
         "telegram_id": str(telegram_user.id), "username": telegram_user.username,
         "first_name": telegram_user.first_name or "Telegram user",
-        "language_code": telegram_user.language_code,
+        "language_code": None,
         "is_admin": telegram_user.id == get_admin_telegram_id(),
     })
     user = _to_user(result.get("user"))
