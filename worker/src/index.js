@@ -279,6 +279,39 @@ export default {
         });
       }
 
+      if (url.pathname === "/internal/participation" && request.method === "POST") {
+        const body = await readBody();
+        const id = String(body?.telegram_id || "");
+        const action = body?.action || "join";
+        if (!/^\d{1,20}$/.test(id) || !["join", "decline"].includes(action)) {
+          return json({ error: "Invalid participation request" }, 400);
+        }
+        if (action === "join") {
+          const result = await env.DB.prepare(
+            "UPDATE users SET participation_status = 'waiting_draw', payment_status = 'not_paid', participation_amount_minor = 0, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ? AND participation_status = 'not_participating' AND EXISTS (SELECT 1 FROM draw_settings WHERE id = 1 AND status = 'not_started' AND participant_limit IS NOT NULL AND participant_limit > (SELECT COUNT(*) FROM users WHERE participation_status = 'waiting_draw'))"
+          ).bind(id).run();
+          if (result.meta.changes === 1) {
+            const settings = await env.DB.prepare("SELECT draw_datetime, participant_limit FROM draw_settings WHERE id = 1").first();
+            const count = await env.DB.prepare("SELECT COUNT(*) AS count FROM users WHERE participation_status = 'waiting_draw'").first();
+            return json({ ok: true, action, status: "waiting_draw", draw_datetime: settings.draw_datetime, participant_count: count.count, participant_limit: settings.participant_limit });
+          }
+        } else {
+          const result = await env.DB.prepare(
+            "UPDATE users SET participation_status = 'declined_for_karma', payment_status = 'not_paid', participation_amount_minor = 0, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ? AND participation_status = 'not_participating'"
+          ).bind(id).run();
+          if (result.meta.changes === 1) return json({ ok: true, action, status: "declined_for_karma" });
+        }
+        const user = await userByTelegramId(id);
+        if (!user) return json({ error: "User not found" }, 404);
+        if (user.participation_status === "waiting_draw") return json({ error: "Вы уже участвуете в текущем розыгрыше." }, 409);
+        if (user.participation_status === "declined_for_karma") return json({ error: "Вы уже отказались от участия в этом раунде." }, 409);
+        const settings = await env.DB.prepare("SELECT participant_limit, status FROM draw_settings WHERE id = 1").first();
+        if (!settings || !settings.participant_limit) return json({ error: "Администратор ещё не настроил розыгрыш." }, 409);
+        if (settings.status !== "not_started") return json({ error: "Регистрация участников на этот розыгрыш закрыта." }, 409);
+        const count = await env.DB.prepare("SELECT COUNT(*) AS count FROM users WHERE participation_status = 'waiting_draw'").first();
+        return json({ error: `Свободных мест нет (${count.count}/${settings.participant_limit}).` }, 409);
+      }
+
       return json({ error: "Not found" }, 404);
     }
 
@@ -360,10 +393,35 @@ export default {
     }
 
     if (url.pathname === "/api/participation" && request.method === "POST") {
-      return json(
-        { error: "Участие пока недоступно. Это тестовая версия без платежей.", test_mode: true },
-        409,
-      );
+      let body;
+      try { body = await request.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
+      const action = body?.action || "join";
+      if (!["join", "decline"].includes(action)) return json({ error: "Invalid participation action" }, 400);
+      if (action === "join") {
+        const result = await env.DB.prepare(
+          "UPDATE users SET participation_status = 'waiting_draw', payment_status = 'not_paid', participation_amount_minor = 0, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ? AND participation_status = 'not_participating' AND EXISTS (SELECT 1 FROM draw_settings WHERE id = 1 AND status = 'not_started' AND participant_limit IS NOT NULL AND participant_limit > (SELECT COUNT(*) FROM users WHERE participation_status = 'waiting_draw'))"
+        ).bind(telegramId).run();
+        if (result.meta.changes === 1) {
+          const [settings, count] = await Promise.all([
+            env.DB.prepare("SELECT draw_datetime, participant_limit FROM draw_settings WHERE id = 1").first(),
+            env.DB.prepare("SELECT COUNT(*) AS count FROM users WHERE participation_status = 'waiting_draw'").first(),
+          ]);
+          return json({ ok: true, status: "waiting_draw", draw_datetime: settings.draw_datetime, participant_count: count.count, participant_limit: settings.participant_limit, test_mode: true });
+        }
+      } else {
+        const result = await env.DB.prepare(
+          "UPDATE users SET participation_status = 'declined_for_karma', payment_status = 'not_paid', participation_amount_minor = 0, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ? AND participation_status = 'not_participating'"
+        ).bind(telegramId).run();
+        if (result.meta.changes === 1) return json({ ok: true, status: "declined_for_karma", test_mode: true });
+      }
+      const user = await env.DB.prepare("SELECT participation_status FROM users WHERE telegram_id = ?").bind(telegramId).first();
+      if (user?.participation_status === "waiting_draw") return json({ error: "Вы уже участвуете в текущем розыгрыше." }, 409);
+      if (user?.participation_status === "declined_for_karma") return json({ error: "Вы уже отказались от участия в этом раунде." }, 409);
+      const settings = await env.DB.prepare("SELECT participant_limit, status FROM draw_settings WHERE id = 1").first();
+      if (!settings || !settings.participant_limit) return json({ error: "Администратор ещё не настроил розыгрыш." }, 409);
+      if (settings.status !== "not_started") return json({ error: "Регистрация участников на этот розыгрыш закрыта." }, 409);
+      const count = await env.DB.prepare("SELECT COUNT(*) AS count FROM users WHERE participation_status = 'waiting_draw'").first();
+      return json({ error: `Свободных мест нет (${count.count}/${settings.participant_limit}).` }, 409);
     }
 
     return json({ error: "Not found" }, 404);
