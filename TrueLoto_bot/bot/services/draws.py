@@ -1,12 +1,16 @@
-from datetime import datetime
 from dataclasses import dataclass
-from decimal import Decimal
-import random
+from datetime import datetime
 
-from sqlalchemy import select
+from bot.api import get, post
+from bot.services.users import User, _to_user
 
-from bot.database import SessionLocal
-from bot.models import DrawRound, DrawSettings, User
+
+@dataclass
+class DrawSettings:
+    id: int
+    draw_datetime: datetime | None
+    participant_limit: int | None
+    status: str
 
 
 @dataclass
@@ -16,97 +20,56 @@ class DrawResult:
     total_weight: int
 
 
+def _to_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
 def get_draw_settings() -> DrawSettings:
-    """Возвращает единую запись с настройками розыгрыша."""
-    with SessionLocal() as session:
-        settings = session.get(DrawSettings, 1)
-        if settings is None:
-            settings = DrawSettings(id=1)
-            session.add(settings)
-            session.commit()
-        return settings
+    data = get("/internal/draw/settings").get("settings") or {}
+    return DrawSettings(
+        id=int(data.get("id", 1)), draw_datetime=_to_datetime(data.get("draw_datetime")),
+        participant_limit=data.get("participant_limit"), status=data.get("status") or "not_started",
+    )
 
 
 def update_draw_datetime(draw_datetime: datetime) -> None:
-    with SessionLocal() as session:
-        settings = session.get(DrawSettings, 1) or DrawSettings(id=1)
-        session.add(settings)
-        settings.draw_datetime = draw_datetime
-        session.commit()
+    post("/internal/draw/settings", {"field": "draw_datetime", "value": draw_datetime.isoformat()})
 
 
 def update_participant_limit(participant_limit: int) -> None:
-    with SessionLocal() as session:
-        settings = session.get(DrawSettings, 1) or DrawSettings(id=1)
-        session.add(settings)
-        settings.participant_limit = participant_limit
-        session.commit()
+    post("/internal/draw/settings", {"field": "participant_limit", "value": participant_limit})
 
 
 def start_test_draw() -> None:
-    with SessionLocal() as session:
-        settings = session.get(DrawSettings, 1) or DrawSettings(id=1)
-        session.add(settings)
-        settings.status = "started"
-        session.commit()
+    post("/internal/draw/start", {})
 
 
 def run_test_draw() -> DrawResult:
-    """Проводит один взвешенный тестовый розыгрыш с ровно N участниками."""
-    with SessionLocal() as session:
-        settings = session.get(DrawSettings, 1) or DrawSettings(id=1)
-        session.add(settings)
-        participants = list(
-            session.scalars(
-                select(User).where(
-                    User.participation_status == "waiting_draw"
-                )
-            )
+    result = post("/internal/draw/run", {})
+    participants = [
+        User(
+            id=0, telegram_id=int(item["telegram_id"]), username=item.get("username"),
+            first_name=item.get("first_name") or "Telegram user", created_at=datetime.utcnow(),
+            is_admin=False, language_code=item.get("language_code"),
+            participation_status="not_participating", participation_amount=0,
+            winning_chance=0, wins_count=0, losses_count=0, payment_status="not_paid",
         )
-        if settings.participant_limit is None or len(participants) != settings.participant_limit:
-            raise ValueError("Количество участников не совпадает с лимитом.")
-
-        weights = [user.losses_count + 1 for user in participants]
-        total_weight = sum(weights)
-        winner = random.choices(participants, weights=weights, k=1)[0]
-
-        for user, weight in zip(participants, weights):
-            user.winning_chance = Decimal(weight) / Decimal(total_weight)
-            user.participation_status = "not_participating"
-            user.payment_status = "not_paid"
-            if user.telegram_id == winner.telegram_id:
-                user.wins_count += 1
-                user.losses_count = 0
-            else:
-                user.losses_count += 1
-
-        session.add(
-            DrawRound(
-                winner_telegram_id=winner.telegram_id,
-                participant_count=len(participants),
-                total_weight=total_weight,
-            )
-        )
-        settings.status = "completed"
-        session.commit()
-        return DrawResult(
-            winner_telegram_id=winner.telegram_id,
-            participants=participants,
-            total_weight=total_weight,
-        )
+        for item in result.get("participants", [])
+    ]
+    return DrawResult(int(result["winner_telegram_id"]), participants, int(result["total_weight"]))
 
 
 def get_users() -> list[User]:
-    with SessionLocal() as session:
-        return list(session.scalars(select(User).order_by(User.created_at.desc())))
+    return [
+        user for user in (_to_user(item) for item in get("/internal/users/list").get("users", []))
+        if user is not None
+    ]
 
 
 def get_waiting_draw_count() -> int:
-    with SessionLocal() as session:
-        return len(
-            list(
-                session.scalars(
-                    select(User.id).where(User.participation_status == "waiting_draw")
-                )
-            )
-        )
+    return int(get("/internal/draw/waiting-count").get("count", 0))
