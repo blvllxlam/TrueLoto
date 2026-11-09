@@ -135,7 +135,7 @@ export default {
              username = excluded.username, first_name = excluded.first_name,
              is_admin = excluded.is_admin, updated_at = CURRENT_TIMESTAMP`,
         ).bind(id, body.username || null, String(body.first_name).slice(0, 255),
-          body.language_code || null, id === String(env.ADMIN_TELEGRAM_ID || "") ? 1 : 0).run();
+          body.language_code || null, body.is_admin === true ? 1 : 0).run();
         await env.DB.prepare(
           "INSERT OR IGNORE INTO wallets (user_id, balance_minor) SELECT id, 0 FROM users WHERE telegram_id = ?"
         ).bind(id).run();
@@ -206,7 +206,7 @@ export default {
           "SELECT * FROM users WHERE participation_status = 'waiting_draw' ORDER BY id"
         ).all();
         const participants = rows.results || [];
-        if (!settings || settings.status !== "started") return json({ error: "Draw is not started" }, 409);
+        if (!settings || settings.status === "completed") return json({ error: "Draw is already completed" }, 409);
         if (!settings.participant_limit || participants.length !== settings.participant_limit) {
           return json({ error: "Participant count does not match the configured limit" }, 409);
         }
