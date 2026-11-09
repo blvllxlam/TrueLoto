@@ -1,0 +1,13 @@
+# Секреты и локальные настройки
+.env
+trueloto.db
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
