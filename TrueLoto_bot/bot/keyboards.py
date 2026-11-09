@@ -1,19 +1,31 @@
-from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
+import os
+
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 
 from bot.texts import text_for
 
 
+MINI_APP_URL = os.getenv(
+    "MINI_APP_URL",
+    "https://mini-app.trueloto-mini-app.pages.dev",
+)
+
+
 def main_keyboard(language_code: str | None, can_participate: bool = True) -> ReplyKeyboardMarkup:
-    """Создаёт главное меню на выбранном языке."""
+    """Создаёт главное меню с кнопкой запуска Telegram Mini App."""
     texts = text_for(language_code)
     keyboard = [
+        [KeyboardButton(
+            text=texts["open_app"],
+            web_app=WebAppInfo(url=MINI_APP_URL),
+        )],
         [KeyboardButton(text=texts["status"])],
         [KeyboardButton(text=texts["rules"])],
         [KeyboardButton(text=texts["language_selection"])],
         [KeyboardButton(text=texts["back"])],
     ]
     if can_participate:
-        keyboard.insert(0, [KeyboardButton(text=texts["participate"])])
+        keyboard.insert(1, [KeyboardButton(text=texts["participate"])])
 
     return ReplyKeyboardMarkup(
         keyboard=keyboard,
@@ -32,4 +44,3 @@ def participation_keyboard(language_code: str | None) -> ReplyKeyboardMarkup:
         ],
         resize_keyboard=True,
     )
-
