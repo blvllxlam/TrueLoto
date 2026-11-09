@@ -216,6 +216,10 @@ export default {
           "SELECT * FROM users WHERE participation_status = 'waiting_draw' ORDER BY id"
         ).all();
         const participants = rows.results || [];
+        const declinedRows = await env.DB.prepare(
+          "SELECT telegram_id, first_name, language_code FROM users WHERE participation_status = 'declined_for_karma' ORDER BY id"
+        ).all();
+        const declinedUsers = declinedRows.results || [];
         if (!settings || settings.status !== "started") return json({ error: "Draw is not started" }, 409);
         if (!settings.participant_limit || participants.length !== settings.participant_limit) {
           return json({ error: "Participant count does not match the configured limit" }, 409);
@@ -298,6 +302,10 @@ export default {
             telegram_id: String(u.telegram_id), first_name: u.first_name,
             username: u.username, language_code: u.language_code,
             weight: weights[i], is_winner: i === winnerIndex,
+          })),
+          declined_users: declinedUsers.map((u) => ({
+            telegram_id: String(u.telegram_id), first_name: u.first_name,
+            language_code: u.language_code,
           })),
           total_weight: totalWeight,
         });
