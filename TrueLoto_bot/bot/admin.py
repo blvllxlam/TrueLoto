@@ -12,6 +12,7 @@ from bot.services.draws import (
     get_users,
     get_waiting_draw_count,
     run_test_draw,
+    start_test_draw,
     update_draw_datetime,
     update_participant_limit,
 )
@@ -151,6 +152,7 @@ async def admin_actions(message: Message, state: FSMContext) -> None:
                 f"Нужно ровно {settings.participant_limit} участников. Сейчас: {waiting_count}."
             )
         else:
+            start_test_draw()
             result = run_test_draw()
             for participant in result.participants:
                 texts = text_for(participant.language_code)
