@@ -1,55 +1,53 @@
 # TrueLoto
 
-Telegram bot and Mini App test project. The bot and Mini App use the same Cloudflare D1 database through the Worker API.
+Тестовый Telegram-бот и Mini App для розыгрышей. Бот и Mini App работают с одной Cloudflare D1 через Cloudflare Worker.
 
-## Architecture
+## Архитектура
 
-- Telegram Mini App -> public Worker API -> D1
-- Python Telegram bot -> private Worker API (shared secret) -> D1
-- The bot must not use a local SQLite database as its application data store.
-- This project is a test environment. No real payments or money transfers are supported.
+- Telegram Mini App → публичный Worker API → D1
+- Python Telegram-бот → приватный Worker API → D1
+- Локальная SQLite не используется как основная база приложения.
+- Участие в текущем тестовом этапе бесплатное. Реальные платежи и денежные переводы отключены.
 
-## Configure the Worker
+## Обновление Worker
 
-From the `worker` directory:
-
-```powershell
-npm install
-npx wrangler secret put BOT_TOKEN
-npx wrangler secret put BOT_API_SECRET
-```
-
-When prompted, enter the same Telegram bot token used by the bot and a long random value for `BOT_API_SECRET`. Keep the API secret private. Never put it in frontend code or commit it.
-
-Apply the D1 migration only after checking the target database and taking a backup:
+Из корня репозитория в PowerShell:
 
 ```powershell
-New-Item -ItemType Directory -Force .wrangler | Out-Null
-npx wrangler d1 export trueloto-db --remote --output=./.wrangler/trueloto-before-migration.sql
-npx wrangler d1 migrations apply trueloto-db --remote
-npx wrangler deploy
+npx.cmd wrangler@latest deploy --config worker/wrangler.toml
 ```
 
-The migration is intended to preserve existing D1 user and draw-history rows. It does not import the local SQLite test database.
+Cloudflare Wrangler должен быть авторизован в нужном аккаунте. Секреты `BOT_TOKEN` и `BOT_API_SECRET` уже должны быть настроены в Worker; не выводи их и не добавляй в Git.
 
-The migration sequence includes an idempotent baseline (0001) and the D1 upgrade (0002). It can initialize a new database or upgrade the original schema. Keep `schema.sql` as the reference for the resulting current schema; do not execute it separately before applying migrations.
+**Важно:** не запускай `worker/schema.sql` и не выполняй D1 migrations при обычном обновлении Worker. Перед любыми изменениями схемы сначала проверь удалённую D1 и сделай резервную копию. Не удаляй и не пересоздавай базу `trueloto-db`.
 
-## Configure the Python bot
+## Python-бот
 
-Copy `TrueLoto_bot/.env.example` to `TrueLoto_bot/.env` and fill in the values:
+Локальные настройки хранятся в `TrueLoto_bot/.env` (файл не коммитится):
 
-- `BOT_TOKEN`: Telegram bot token; must match the Worker secret.
-- `ADMIN_TELEGRAM_ID`: Telegram numeric ID of the administrator.
-- `WORKER_API_URL`: deployed Worker base URL, without a trailing slash.
-- `BOT_API_SECRET`: same secret configured in the Worker.
-- `DRAW_DATETIME`: optional display fallback used by the bot.
+- `BOT_TOKEN` — токен Telegram-бота.
+- `ADMIN_TELEGRAM_ID` — Telegram ID администратора.
+- `WORKER_API_URL` — базовый URL Worker без завершающего слеша.
+- `BOT_API_SECRET` — тот же приватный секрет, что настроен в Worker.
+- `DRAW_DATETIME` — необязательная резервная дата для отображения.
 
-Install and start:
+Установка зависимостей и запуск из корня репозитория:
 
 ```powershell
-cd TrueLoto_bot
-py -m pip install -r requirements.txt
-py main.py
+py -m pip install -r .\TrueLoto_bot\requirements.txt
+py .\TrueLoto_bot\main.py
 ```
 
-The bot's user, language, participation, settings and draw operations are now routed through the Worker API. The old tracked local SQLite database and its SQLAlchemy models have been removed; the bot no longer creates or uses a local application database.
+После обновления ветки перезапусти бота, чтобы он загрузил новый код.
+
+## Mini App
+
+Статика находится в `web/`. В `web/index.html` уже указан текущий адрес Worker. После изменений HTML опубликуй каталог `web` в существующий Cloudflare Pages project. Не создавай новый Pages project, если приложение уже опубликовано: используй имя существующего проекта из Cloudflare.
+
+## Основные ограничения тестового режима
+
+- Запись на розыгрыш бесплатная.
+- Нельзя участвовать без установленной даты и лимита.
+- Регистрация закрывается после старта розыгрыша.
+- Лимит участников проверяется непосредственно в D1.
+- Платежи и переводы не выполняются.
