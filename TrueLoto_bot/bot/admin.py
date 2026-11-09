@@ -133,8 +133,12 @@ async def admin_actions(message: Message, state: FSMContext) -> None:
         await state.set_state(DrawSetup.waiting_participant_limit)
         await message.answer("Отправьте нужное количество участников целым числом.")
     elif action == "start":
-        settings = get_draw_settings()
-        waiting_count = get_waiting_draw_count()
+        try:
+            settings = get_draw_settings()
+            waiting_count = get_waiting_draw_count()
+        except Exception as exc:
+            await message.answer(f"Не удалось получить настройки розыгрыша: {exc}")
+            return
         if settings.status not in {"not_started", "started"}:
             await message.answer(
                 "Этот раунд уже завершён или подводятся итоги. Чтобы подготовить следующий "
@@ -197,7 +201,11 @@ async def save_datetime(message: Message, state: FSMContext) -> None:
         await message.answer("Неверный формат. Пример: 31.12.2026 20:00")
         return
 
-    update_draw_datetime(draw_datetime)
+    try:
+        update_draw_datetime(draw_datetime)
+    except Exception as exc:
+        await message.answer(f"Не удалось сохранить дату: {exc}")
+        return
     await state.clear()
     await message.answer("Дата и время розыгрыша сохранены.", reply_markup=admin_keyboard())
 
@@ -215,7 +223,11 @@ async def save_participant_limit(message: Message, state: FSMContext) -> None:
         await message.answer("Введите целое положительное число.")
         return
 
-    update_participant_limit(participant_limit)
+    try:
+        update_participant_limit(participant_limit)
+    except Exception as exc:
+        await message.answer(f"Не удалось сохранить лимит: {exc}")
+        return
     await state.clear()
     await message.answer("Лимит участников сохранён.", reply_markup=admin_keyboard())
 
