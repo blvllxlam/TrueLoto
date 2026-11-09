@@ -66,15 +66,6 @@ def participant_status_label(status: str) -> str:
     return labels.get(status, status)
 
 
-def payment_status_label(status: str) -> str:
-    labels = {
-        "not_paid": "Не оплачено",
-        "test_deposit": "Депозит внесён (тест)",
-        "test_paid": "Оплата подтверждена (тест)",
-    }
-    return labels.get(status, status)
-
-
 def format_winning_chance(chance: float) -> str:
     return f"{float(chance) * 100:.2f}%"
 
@@ -114,7 +105,6 @@ async def admin_actions(message: Message, state: FSMContext) -> None:
                 username = f"@{user.username}" if user.username else "без username"
                 lines.append(
                     f"ID: {user.telegram_id} | {user.first_name} ({username})\n"
-                    f"Оплата: {payment_status_label(user.payment_status)}\n"
                     f"Участие: {participant_status_label(user.participation_status)}\n"
                     f"Шанс на победу: {format_winning_chance(user.winning_chance)}"
                 )
