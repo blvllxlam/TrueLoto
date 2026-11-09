@@ -68,10 +68,6 @@ def set_user_language(telegram_id: int, language_code: str) -> None:
     post("/internal/users/update", {"telegram_id": str(telegram_id), "field": "language_code", "value": language_code})
 
 
-def set_participation_status(telegram_id: int, status: str) -> None:
-    post("/internal/users/update", {"telegram_id": str(telegram_id), "field": "participation_status", "value": status})
-
-
 def join_draw(telegram_id: int) -> dict:
     """Атомарно записывает бесплатное участие через Worker API."""
     return post("/internal/participation", {
