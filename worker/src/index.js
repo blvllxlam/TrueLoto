@@ -124,7 +124,7 @@ export default {
 
       if (url.pathname === "/internal/users/upsert" && request.method === "POST") {
         const body = await readBody();
-        if (!body || !/^\\d{1,20}$/.test(String(body.telegram_id || "")) || !body.first_name) {
+        if (!body || !/^\d{1,20}$/.test(String(body.telegram_id || "")) || !body.first_name) {
           return json({ error: "Invalid user profile" }, 400);
         }
         const id = String(body.telegram_id);
