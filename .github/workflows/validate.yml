@@ -1,0 +1,74 @@
+name: Validate TrueLoto
+
+on:
+  push:
+    branches: [mini-app]
+  pull_request:
+    branches: [mini-app]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check Worker JavaScript syntax
+        run: node --check worker/src/index.js
+
+      - name: Check Mini App JavaScript syntax
+        run: |
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+
+          class Scripts(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.inline = False
+                  self.parts = []
+
+              def handle_starttag(self, tag, attrs):
+                  if tag == "script" and not dict(attrs).get("src"):
+                      self.inline = True
+
+              def handle_endtag(self, tag):
+                  if tag == "script":
+                      self.inline = False
+
+              def handle_data(self, data):
+                  if self.inline:
+                      self.parts.append(data)
+
+          parser = Scripts()
+          parser.feed(Path("web/index.html").read_text(encoding="utf-8"))
+          if not parser.parts:
+              raise SystemExit("No inline Mini App script found")
+          Path("/tmp/trueloto-mini-app.js").write_text("\n".join(parser.parts), encoding="utf-8")
+          PY
+          node --check /tmp/trueloto-mini-app.js
+
+      - name: Compile Python bot
+        run: python -m compileall -q TrueLoto_bot
+
+      - name: Validate D1 schema SQL
+        run: |
+          python - <<'PY'
+          import sqlite3
+          from pathlib import Path
+
+          db = sqlite3.connect(":memory:")
+          db.executescript(Path("worker/schema.sql").read_text(encoding="utf-8"))
+          print("D1 schema SQL is valid")
+          PY
