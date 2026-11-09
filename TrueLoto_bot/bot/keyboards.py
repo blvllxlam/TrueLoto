@@ -5,19 +5,17 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 from bot.texts import text_for
 
 
-MINI_APP_URL = os.getenv(
-    "MINI_APP_URL",
-    "https://mini-app.trueloto-mini-app.pages.dev",
-)
-
-
 def main_keyboard(language_code: str | None, can_participate: bool = True) -> ReplyKeyboardMarkup:
     """Создаёт главное меню с кнопкой запуска Telegram Mini App."""
     texts = text_for(language_code)
+    mini_app_url = os.getenv(
+        "MINI_APP_URL",
+        "https://mini-app.trueloto-mini-app.pages.dev",
+    )
     keyboard = [
         [KeyboardButton(
             text=texts["open_app"],
-            web_app=WebAppInfo(url=MINI_APP_URL),
+            web_app=WebAppInfo(url=mini_app_url),
         )],
         [KeyboardButton(text=texts["status"])],
         [KeyboardButton(text=texts["rules"])],
