@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   is_admin INTEGER NOT NULL DEFAULT 0 CHECK (is_admin IN (0, 1)),
   language_code TEXT,
+  payment_status TEXT NOT NULL DEFAULT 'not_paid',
   participation_status TEXT NOT NULL DEFAULT 'not_participating',
   participation_amount_minor INTEGER NOT NULL DEFAULT 0 CHECK (participation_amount_minor >= 0),
   winning_chance_basis_points INTEGER NOT NULL DEFAULT 0 CHECK (winning_chance_basis_points >= 0),
