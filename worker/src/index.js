@@ -212,11 +212,24 @@ export default {
 
       if (url.pathname === "/internal/draw/run" && request.method === "POST") {
         const settings = await env.DB.prepare("SELECT * FROM draw_settings WHERE id = 1").first();
+        if (settings?.status === "completed") {
+          const previous = await env.DB.prepare(
+            "SELECT result_metadata_json FROM draw_rounds WHERE status = 'completed' ORDER BY id DESC LIMIT 1"
+          ).first();
+          if (previous?.result_metadata_json) {
+            try {
+              return json({ ...JSON.parse(previous.result_metadata_json), replayed: true });
+            } catch {
+              return json({ error: "Saved draw result is invalid; contact support" }, 500);
+            }
+          }
+          return json({ error: "Draw is completed but its result is unavailable" }, 409);
+        }
+        if (!settings || settings.status !== "started") return json({ error: "Draw is not started" }, 409);
         const rows = await env.DB.prepare(
           "SELECT * FROM users WHERE participation_status = 'waiting_draw' ORDER BY id"
         ).all();
         const participants = rows.results || [];
-        if (!settings || settings.status !== "started") return json({ error: "Draw is not started" }, 409);
         if (!settings.participant_limit || participants.length !== settings.participant_limit) {
           return json({ error: "Participant count does not match the configured limit" }, 409);
         }
@@ -247,15 +260,30 @@ export default {
         ).all();
         const declinedUsers = declinedRows.results || [];
 
+        const drawResult = {
+          winner_telegram_id: String(winner.telegram_id),
+          participants: participants.map((u, i) => ({
+            telegram_id: String(u.telegram_id), first_name: u.first_name,
+            username: u.username, language_code: u.language_code,
+            weight: weights[i], is_winner: i === winnerIndex,
+          })),
+          declined_users: declinedUsers.map((u) => ({
+            telegram_id: String(u.telegram_id), first_name: u.first_name,
+            language_code: u.language_code,
+          })),
+          total_weight: totalWeight,
+        };
         const statements = [
           env.DB.prepare(
             `INSERT INTO draw_rounds
              (id, status, draw_datetime, participant_limit, participant_count, total_weight,
-              winner_user_id, winner_telegram_id, created_at, started_at, completed_at, finalized_at)
-             SELECT ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+              winner_user_id, winner_telegram_id, created_at, started_at, completed_at, finalized_at,
+              result_metadata_json)
+             SELECT ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
              WHERE EXISTS (SELECT 1 FROM draw_settings WHERE id = 1 AND status = 'finalizing')`
           ).bind(roundId, settings.draw_datetime, settings.participant_limit, participants.length,
-            totalWeight, winner.id, String(winner.telegram_id), now, now, now, now),
+            totalWeight, winner.id, String(winner.telegram_id), now, now, now, now,
+            JSON.stringify(drawResult)),
         ];
 
         for (let i = 0; i < participants.length; i++) {
@@ -298,19 +326,7 @@ export default {
         ).bind(roundId).first();
         if (!finalized) return json({ error: "Draw was already finalized by another request" }, 409);
 
-        return json({
-          winner_telegram_id: String(winner.telegram_id),
-          participants: participants.map((u, i) => ({
-            telegram_id: String(u.telegram_id), first_name: u.first_name,
-            username: u.username, language_code: u.language_code,
-            weight: weights[i], is_winner: i === winnerIndex,
-          })),
-          declined_users: declinedUsers.map((u) => ({
-            telegram_id: String(u.telegram_id), first_name: u.first_name,
-            language_code: u.language_code,
-          })),
-          total_weight: totalWeight,
-        });
+        return json(drawResult);
       }
 
       if (url.pathname === "/internal/participation" && request.method === "POST") {
